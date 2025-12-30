@@ -1,0 +1,8 @@
+Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
+
+py -3 .\scripts\run_native_tensorrt_bench.py --engine .\engines\distilbert-base-uncased_b1_s128_static_fast-gelu_int8_quantized.plan --verbose --profile
+
+
+
+
+

@@ -21,4 +21,7 @@ message GenerateResponse {
   int32 input_tokens = 2;
   int32 output_tokens = 3;
   double time_ms = 4;
+  double ttft_ms = 5;
+  double tpot_ms = 6;
+  double tokens_per_second = 7;
 }

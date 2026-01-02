@@ -1,0 +1,10 @@
+.venv/
+__pycache__/
+results/
+engines/
+models/phi-3-mini/model-*.safetensors
+models/phi-3-mini/model.safetensors.index.json
+models/phi-3-mini/model-*.bin
+*.ipynb_checkpoints/
+.git
+.gitignore

@@ -38,7 +38,18 @@ def main():
     )
     response = stub.Generate(request)
     print(response.text)
-    print(f"input_tokens={response.input_tokens} output_tokens={response.output_tokens} time_ms={response.time_ms:.2f}")
+    print(
+        " ".join(
+            [
+                f"input_tokens={response.input_tokens}",
+                f"output_tokens={response.output_tokens}",
+                f"time_ms={response.time_ms:.2f}",
+                f"ttft_ms={response.ttft_ms:.2f}",
+                f"tpot_ms={response.tpot_ms:.3f}",
+                f"tokens_per_second={response.tokens_per_second:.2f}",
+            ]
+        )
+    )
 
 
 if __name__ == "__main__":

@@ -1,0 +1,6 @@
+transformers==4.48.0
+grpcio==1.67.1
+grpcio-tools==1.67.1
+pynvml==11.5.0
+sentencepiece==0.2.0
+numpy>=1.24

@@ -1,4 +1,5 @@
 ﻿import subprocess
+import sys
 from pathlib import Path
 
 
@@ -8,7 +9,7 @@ def main():
     out_dir = repo_root / "services" / "grpc"
 
     cmd = [
-        "python",
+        sys.executable,
         "-m",
         "grpc_tools.protoc",
         "--experimental_allow_proto3_optional",

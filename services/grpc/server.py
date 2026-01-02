@@ -3,10 +3,11 @@ import time
 from concurrent import futures
 from pathlib import Path
 import sys
+from threading import Thread
 
 import grpc
 import torch
-from transformers import AutoModelForCausalLM, AutoTokenizer
+from transformers import AutoModelForCausalLM, AutoTokenizer, TextIteratorStreamer
 
 PROTO_DIR = Path(__file__).resolve().parent
 if str(PROTO_DIR) not in sys.path:
@@ -29,6 +30,10 @@ class TextGenerationService(text_generation_pb2_grpc.TextGenerationServicer):
         self.device = device
         self.default_do_sample = default_do_sample
 
+    def _sync_if_cuda(self):
+        if self.device.type == "cuda":
+            torch.cuda.synchronize(self.device)
+
     def Generate(self, request, context):
         prompt = request.prompt
         if not prompt:
@@ -45,18 +50,54 @@ class TextGenerationService(text_generation_pb2_grpc.TextGenerationServicer):
 
         inputs = self.tokenizer(prompt, return_tensors="pt").to(self.device)
 
+        streamer = TextIteratorStreamer(
+            self.tokenizer,
+            skip_prompt=True,
+            skip_special_tokens=True,
+        )
+
+        generation_args = {
+            **inputs,
+            "max_new_tokens": max_new_tokens,
+            "do_sample": do_sample,
+            "temperature": temperature,
+            "top_p": top_p,
+            "top_k": top_k,
+            "pad_token_id": self.tokenizer.eos_token_id,
+        }
+
+        generation_result = {}
+        generation_error = {}
+
+        def _generate():
+            try:
+                with torch.inference_mode():
+                    generation_result["sequences"] = self.model.generate(streamer=streamer, **generation_args)
+            except Exception as exc:  # pragma: no cover - propagate generation failures
+                generation_error["exc"] = exc
+
+        self._sync_if_cuda()
         start = time.perf_counter()
-        with torch.inference_mode():
-            generated = self.model.generate(
-                **inputs,
-                max_new_tokens=max_new_tokens,
-                do_sample=do_sample,
-                temperature=temperature,
-                top_p=top_p,
-                top_k=top_k,
-                pad_token_id=self.tokenizer.eos_token_id,
-            )
-        elapsed_ms = (time.perf_counter() - start) * 1000.0
+        worker = Thread(target=_generate)
+        worker.start()
+
+        first_token_ts = None
+        for _chunk in streamer:
+            if first_token_ts is None:
+                self._sync_if_cuda()
+                first_token_ts = time.perf_counter()
+
+        worker.join()
+        if generation_error:
+            raise generation_error["exc"]
+        self._sync_if_cuda()
+        end = time.perf_counter()
+
+        generated = generation_result["sequences"]
+        elapsed_ms = (end - start) * 1000.0
+        if first_token_ts is None:
+            first_token_ts = end
+        ttft_ms = max((first_token_ts - start) * 1000.0, 0.0)
 
         text = self.tokenizer.decode(generated[0], skip_special_tokens=True)
         if request.stop:
@@ -66,12 +107,18 @@ class TextGenerationService(text_generation_pb2_grpc.TextGenerationServicer):
 
         input_tokens = int(inputs["input_ids"].shape[-1])
         output_tokens = int(generated.shape[-1] - input_tokens)
+        decode_ms = max(elapsed_ms - ttft_ms, 0.0)
+        tpot_ms = decode_ms / output_tokens if output_tokens else 0.0
+        tokens_per_second = (output_tokens / (decode_ms / 1000.0)) if decode_ms > 0 and output_tokens else 0.0
 
         return text_generation_pb2.GenerateResponse(
             text=text,
             input_tokens=input_tokens,
             output_tokens=output_tokens,
             time_ms=elapsed_ms,
+            ttft_ms=ttft_ms,
+            tpot_ms=tpot_ms,
+            tokens_per_second=tokens_per_second,
         )
 
 

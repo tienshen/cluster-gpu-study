@@ -1,4 +1,4 @@
-# Cluster GPU Study
+﻿# Cluster GPU Study
 
 ## Phase 1: Single GPU, production-shaped service
 
@@ -20,6 +20,34 @@ Definition of "done":
 - Results land in `results/` with a config snapshot.
 
 Think: reproducible single-node inference product.
+## Phi-3 Mini gRPC service (local export + serve)
+
+Quick path to download/export Phi-3 Mini, generate gRPC stubs, and serve from disk.
+
+1) Install deps (example):
+```
+pip install torch transformers grpcio grpcio-tools
+```
+
+2) Export the model from Hugging Face:
+```
+python scripts/export_phi3.py --trust-remote-code --output-dir models/phi-3-mini
+```
+
+3) Generate gRPC stubs:
+```
+python scripts/generate_grpc_stubs.py
+```
+
+4) Run the gRPC server:
+```
+python -m services.grpc.server --model-path models/phi-3-mini --trust-remote-code --device cuda --bfloat16 --do-sample
+```
+
+5) Call it:
+```
+python -m services.grpc.client --prompt "Write a limerick about GPUs." --do-sample
+```
 
 ## Phase 2: Multi-GPU on one node
 
@@ -52,3 +80,4 @@ What changes:
   - Startup/initialization cost.
   - Node heterogeneity.
   - Interruptions (spot/preemptible).
+

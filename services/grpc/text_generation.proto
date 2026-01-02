@@ -1,0 +1,24 @@
+﻿syntax = "proto3";
+
+package textgen;
+
+service TextGeneration {
+  rpc Generate(GenerateRequest) returns (GenerateResponse);
+}
+
+message GenerateRequest {
+  string prompt = 1;
+  int32 max_new_tokens = 2;
+  float temperature = 3;
+  float top_p = 4;
+  int32 top_k = 5;
+  optional bool do_sample = 6;
+  string stop = 7;
+}
+
+message GenerateResponse {
+  string text = 1;
+  int32 input_tokens = 2;
+  int32 output_tokens = 3;
+  double time_ms = 4;
+}

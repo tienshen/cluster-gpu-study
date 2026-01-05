@@ -48,6 +48,22 @@ $PROFILE
 *.trt
 *.engine
 *.pth
+*.plan
+*.safetensors
+*.bin
+
+# Model artifacts
+models/*/checkpoint/
+models/*/1/*.plan
+models/*/1/*.engine
+engines/
+
+# Results
+results/*.json
+results/*.csv
+
+# Triton cache
+.triton/
 *.pt
 *.h5
 *.pkl

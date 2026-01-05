@@ -1,0 +1,28 @@
+# Model configuration for TensorRT-LLM engines
+# Adjust these parameters based on your hardware and workload
+
+model:
+  name: phi3
+  source: microsoft/phi-3-mini-4k-instruct
+  dtype: float16
+  
+  # Input/output constraints
+  max_input_len: 2048
+  max_output_len: 512
+  max_batch_size: 8
+  max_beam_width: 1
+
+triton:
+  # Dynamic batching configuration
+  preferred_batch_size: [4, 8]
+  max_queue_delay_us: 5000
+  
+  # Instance configuration
+  instance_count: 1
+  instance_kind: KIND_GPU
+
+generation:
+  # Default sampling parameters
+  temperature: 0.7
+  top_p: 0.9
+  top_k: 50

@@ -1,0 +1,18 @@
+# syntax=docker/dockerfile:1
+FROM nvcr.io/nvidia/tritonserver:24.01-py3
+
+# Install client libraries and monitoring tools
+RUN pip install --no-cache-dir \
+    tritonclient[all] \
+    pynvml \
+    prometheus-client
+
+# Triton will serve models from /models
+# Mount your model repository at runtime:
+#   docker run --gpus all -p 8000:8000 -p 8001:8001 \
+#     -v $(pwd)/models:/models \
+#     tritonserver --model-repository=/models
+
+EXPOSE 8000 8001 8002
+
+CMD ["tritonserver", "--model-repository=/models"]

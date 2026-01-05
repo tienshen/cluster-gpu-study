@@ -11,38 +11,43 @@ This project demonstrates high-performance LLM serving with:
 
 ## Quick Start
 
-### 1. Install Client Dependencies
+### 1. Setup Virtual Environment
 ```bash
+python -m venv .venv
+.venv\Scripts\activate    # Windows
+# source .venv/bin/activate  # Linux/Mac
 pip install -r requirements.txt
 ```
 
 ### 2. Build TensorRT-LLM Engine
+**Windows:**
+```cmd
+build_engine.bat --model microsoft/phi-3-mini-4k-instruct --output models/phi3/1 --dtype float16
+```
+
+**Linux/Mac or manual:**
 ```bash
-# Build Phi-3 Mini engine (requires TensorRT-LLM environment)
-python tools/build_engine.py \
-    --model microsoft/phi-3-mini-4k-instruct \
-    --output models/phi3/1 \
-    --dtype float16 \
-    --max-batch-size 8
+python tools/build_engine.py --model microsoft/phi-3-mini-4k-instruct --output models/phi3/1 --dtype float16
 ```
 
 ### 3. Start Triton Server
 ```bash
 docker run --gpus all \
     -p 8000:8000 -p 8001:8001 -p 8002:8002 \
-    -v $(pwd)/models:/models \
+    -v %cd%/models:/models \
     nvcr.io/nvidia/tritonserver:24.01-py3 \
     tritonserver --model-repository=/models
 ```
 
 ### 4. Run Benchmark
+**Windows:**
+```cmd
+benchmark.bat --model phi3 --requests 100 --concurrency 4 --report results/phi3_baseline.json
+```
+
+**Linux/Mac or manual:**
 ```bash
-python tools/benchmark.py \
-    --model phi3 \
-    --url localhost:8001 \
-    --requests 100 \
-    --concurrency 4 \
-    --report results/phi3_baseline.json
+python tools/benchmark.py --model phi3 --requests 100 --concurrency 4 --report results/phi3_baseline.json
 ```
 
 ---

@@ -122,6 +122,161 @@ Edit `configs/model_config.yaml` to adjust:
 
 ---
 
+## Cloud Deployment
+
+This project is designed for cloud GPU environments. Local Windows development is for editing code/configs only.
+
+### AWS Deployment (Recommended)
+
+**1. Launch GPU Instance**
+```bash
+# Use Deep Learning AMI with Docker + NVIDIA drivers pre-installed
+# Instance type: g4dn.xlarge (T4 GPU, ~$0.50/hr) or g5.xlarge (A10G, ~$1.00/hr)
+aws ec2 run-instances \
+    --image-id ami-0c2b8ca1dad447f8a \
+    --instance-type g4dn.xlarge \
+    --key-name YOUR_KEY \
+    --security-group-ids sg-xxxxx \
+    --block-device-mappings 'DeviceName=/dev/sda1,Ebs={VolumeSize=100}'
+```
+
+**2. SSH and Setup**
+```bash
+ssh -i your-key.pem ubuntu@<instance-ip>
+
+# Clone repo
+git clone https://github.com/YOUR_USERNAME/cluster-gpu-study.git
+cd cluster-gpu-study
+git checkout triton-overhaul
+
+# Verify GPU
+nvidia-smi
+```
+
+**3. Build TensorRT-LLM Engine**
+```bash
+# Build using NVIDIA's TensorRT-LLM container
+docker run --gpus all -v $(pwd):/workspace \
+    nvcr.io/nvidia/tensorrt_llm/release:v0.7.1 \
+    bash -c "cd /workspace && python tools/build_engine.py \
+        --model microsoft/phi-3-mini-4k-instruct \
+        --output models/phi3/1 \
+        --dtype float16 \
+        --max-batch-size 8"
+```
+
+**4. Start Triton Server**
+```bash
+docker run -d --gpus all \
+    -p 8000:8000 -p 8001:8001 -p 8002:8002 \
+    -v $(pwd)/models:/models \
+    --name triton-server \
+    nvcr.io/nvidia/tritonserver:24.01-py3 \
+    tritonserver --model-repository=/models
+```
+
+**5. Run Benchmarks**
+```bash
+# Install client dependencies
+pip install -r requirements.txt
+
+# Benchmark with increasing concurrency
+for c in 1 2 4 8 16; do
+    python tools/benchmark.py \
+        --model phi3 \
+        --requests 100 \
+        --concurrency $c \
+        --report results/phi3_c${c}.json
+done
+```
+
+**6. Analyze Results**
+```bash
+# Download results to local machine
+scp -i your-key.pem ubuntu@<instance-ip>:~/cluster-gpu-study/results/*.json ./local-results/
+
+# Teardown instance when done
+aws ec2 terminate-instances --instance-ids i-xxxxx
+```
+
+---
+
+### GCP Deployment
+
+**1. Launch GPU VM**
+```bash
+gcloud compute instances create triton-benchmark \
+    --zone=us-central1-a \
+    --machine-type=n1-standard-4 \
+    --accelerator=type=nvidia-tesla-t4,count=1 \
+    --image-family=pytorch-latest-gpu \
+    --image-project=deeplearning-platform-release \
+    --boot-disk-size=100GB \
+    --maintenance-policy=TERMINATE
+```
+
+**2. Setup (same as AWS steps 2-5)**
+
+**3. Cleanup**
+```bash
+gcloud compute instances delete triton-benchmark --zone=us-central1-a
+```
+
+---
+
+### Azure Deployment
+
+**1. Launch GPU VM**
+```bash
+az vm create \
+    --resource-group YOUR_RG \
+    --name triton-benchmark \
+    --image "microsoft-dsvm:ubuntu-2004:ubuntu-2004:latest" \
+    --size Standard_NC4as_T4_v3 \
+    --admin-username azureuser \
+    --generate-ssh-keys
+```
+
+**2. Setup (same as AWS steps 2-5)**
+
+**3. Cleanup**
+```bash
+az vm delete --resource-group YOUR_RG --name triton-benchmark --yes
+```
+
+---
+
+## Development Workflow
+
+**Local (Windows):**
+- Edit tools, configs, documentation
+- Commit and push changes
+- No need to run inference locally
+
+**Cloud (Linux + GPU):**
+- Pull latest code
+- Build engines and run benchmarks
+- Download results for analysis
+- Terminate instance
+
+---
+
+## Cost Optimization
+
+| Provider | Instance | GPU | Cost/hr | Best For |
+|----------|----------|-----|---------|----------|
+| AWS | g4dn.xlarge | T4 | $0.526 | Development/testing |
+| AWS | g5.xlarge | A10G | $1.006 | Production benchmarks |
+| GCP | n1-standard-4 + T4 | T4 | $0.35-0.45 | Cost-optimized |
+| Azure | NC4as_T4_v3 | T4 | $0.526 | Azure ecosystem |
+
+**Tips:**
+- Use spot/preemptible instances for 60-80% discount
+- Terminate after each benchmark run
+- Automate with Infrastructure-as-Code (Terraform/Pulumi)
+
+---
+
 ## Backup Branch
 
 Previous Phase 1 implementation (custom gRPC + PyTorch) preserved in:
